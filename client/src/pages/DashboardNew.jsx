@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
-import JobCard from '../components/JobCard';
+import JobCard from '../components/JobCardNew';
+import SkeletonLoader from '../components/SkeletonLoader';
 
 export default function Dashboard({ user }) {
   const navigate = useNavigate();
@@ -70,8 +71,10 @@ export default function Dashboard({ user }) {
         <h2 className="text-xl font-bold text-white mb-4">Recent Generations</h2>
         
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="space-y-4">
+            <SkeletonLoader type="card" />
+            <SkeletonLoader type="card" />
+            <SkeletonLoader type="card" />
           </div>
         ) : jobs.length === 0 ? (
           <div className="text-center py-12 bg-slate-900 rounded-2xl border border-slate-800">
@@ -88,8 +91,20 @@ export default function Dashboard({ user }) {
           </div>
         ) : (
           <div className="space-y-4">
-            {jobs.map(job => (
-              <JobCard key={job.id} job={job} />
+            {jobs.map((job, idx) => (
+              <div
+                key={job.id}
+                className="animate-slide-up"
+                style={{ animationDelay: `${idx * 50}ms` }}
+              >
+                <JobCard job={job} onDelete={async (id) => {
+                  await fetch(`/api/jobs/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                  });
+                  loadJobs();
+                }} />
+              </div>
             ))}
           </div>
         )}

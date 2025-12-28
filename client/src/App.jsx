@@ -2,14 +2,17 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/DashboardNew';
-import CreatePage from './pages/CreatePage';
-import VaultPage from './pages/VaultPage';
-import ProfilePage from './pages/ProfilePage';
+import CreatePage from './pages/CreatePageEnhanced';
+import VaultPage from './pages/VaultPageEnhanced';
+import ProfilePage from './pages/ProfilePageEnhanced';
+import PromptLibraryPage from './pages/PromptLibraryPage';
 import JobDetailPage from './pages/JobDetailPage';
+import Onboarding from './components/Onboarding';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -24,6 +27,12 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        
+        // Check if onboarding needed
+        const completed = localStorage.getItem('onboarding_completed');
+        if (!completed) {
+          setShowOnboarding(true);
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -31,6 +40,10 @@ function App() {
       setLoading(false);
     }
   };
+
+  if (showOnboarding && user) {
+    return <Onboarding onComplete={() => setShowOnboarding(false)} />;
+  }
 
   if (loading) {
     return (
@@ -64,6 +77,10 @@ function App() {
       <Route 
         path="/profile" 
         element={user ? <ProfilePage user={user} /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/prompt-library" 
+        element={user ? <PromptLibraryPage user={user} /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/jobs/:id" 

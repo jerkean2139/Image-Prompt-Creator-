@@ -53,6 +53,7 @@ model User {
   vaultCollections VaultCollection[]
   vaultItems       VaultItem[]
   assets           Asset[]
+  savedPrompts     SavedPrompt[]
 }
 
 model Session {
@@ -206,6 +207,28 @@ model VaultItem {
   tags          String?
   notes         String?  @db.Text
   sourceJobId   String?
+  isFavorite    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model SavedPrompt {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String?
+  promptText    String   @db.Text
+  negativePrompt String? @db.Text
+  presetKey     String?
+  aspectRatio   String?
+  moodTags      String?
+  seed          Int?
+  guidanceScale Float?   @default(7.5)
+  
+  isFavorite    Boolean  @default(false)
+  useCount      Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
