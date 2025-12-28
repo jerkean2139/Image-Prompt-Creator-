@@ -6,6 +6,12 @@ import session from 'express-session';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
 import { PrismaClient } from '@prisma/client';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -86,7 +92,6 @@ app.use('/api/upload', uploadRoutes);
 
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {
-  const path = require('path');
   const distPath = path.join(__dirname, '..', 'dist');
   
   app.use(express.static(distPath));
