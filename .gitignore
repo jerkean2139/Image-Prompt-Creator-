@@ -35,7 +35,7 @@ uploads/*
 !uploads/.gitkeep
 
 # Prisma
-prisma/migrations/*_*/
+# Keep migrations in git for deployment
 
 # Testing
 coverage/
