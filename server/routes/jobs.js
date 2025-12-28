@@ -37,6 +37,16 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
     
+    // Deduct credits upfront
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        creditsBalance: {
+          decrement: estimatedCost
+        }
+      }
+    });
+    
     // Create job
     const job = await prisma.job.create({
       data: {
@@ -49,7 +59,8 @@ router.post('/', requireAuth, async (req, res) => {
         bypassPromptCreation: bypassPromptCreation || false,
         directPrompt: directPrompt ? JSON.stringify(directPrompt) : null,
         referenceImages: referenceImages || [],
-        presetAnswers: presetAnswers ? JSON.stringify(presetAnswers) : null
+        presetAnswers: presetAnswers ? JSON.stringify(presetAnswers) : null,
+        creditsUsed: estimatedCost
       }
     });
     

@@ -1,8 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/Dashboard';
+import Dashboard from './pages/DashboardNew';
+import CreatePage from './pages/CreatePage';
 import VaultPage from './pages/VaultPage';
+import ProfilePage from './pages/ProfilePage';
 import JobDetailPage from './pages/JobDetailPage';
 
 function App() {
@@ -49,11 +51,19 @@ function App() {
       />
       <Route 
         path="/dashboard" 
-        element={user ? <Dashboard user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} 
+        element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/create" 
+        element={user ? <CreatePage user={user} /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/vault" 
         element={user ? <VaultPage user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} 
+      />
+      <Route 
+        path="/profile" 
+        element={user ? <ProfilePage user={user} /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/jobs/:id" 
