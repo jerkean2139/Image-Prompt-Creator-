@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-cyber-border;
+  }
+  
+  body {
+    @apply bg-cyber-bg text-gray-100 font-sans antialiased;
+    background-image: 
+      radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-cyber text-white font-semibold rounded-lg 
+           hover:shadow-neon-blue transition-all duration-300 
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply px-6 py-3 bg-cyber-surface border border-cyber-border text-gray-100 
+           font-semibold rounded-lg hover:border-cyber-blue 
+           transition-all duration-300;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 bg-cyber-surface border border-cyber-border 
+           text-gray-100 rounded-lg focus:outline-none focus:border-cyber-blue 
+           focus:ring-1 focus:ring-cyber-blue transition-all duration-200;
+  }
+  
+  .card {
+    @apply bg-cyber-surface border border-cyber-border rounded-xl p-6 
+           hover:border-cyber-blue/50 transition-all duration-300;
+  }
+  
+  .card-glow {
+    @apply card hover:shadow-neon-blue;
+  }
+  
+  .gradient-text {
+    @apply bg-gradient-cyber bg-clip-text text-transparent;
+  }
+  
+  .neon-border {
+    @apply border-2 border-cyber-blue shadow-neon-blue;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b5cf6;
+}
+
+/* Loading animation */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.loading-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    #111827 0%,
+    #1f2937 20%,
+    #111827 40%,
+    #111827 100%
+  );
+  background-size: 1000px 100%;
+}

@@ -1,0 +1,235 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Provider {
+  OPENAI_GPT52_IMAGE
+  OPENAI_DALLE3
+  GEMINI_NANOBANANA_PRO
+  FLUX_PRO_2
+  IDEOGRAM
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  PARTIAL
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum CreditEventType {
+  GRANT
+  SPEND
+  REFUND
+  ADJUST
+}
+
+enum AssetType {
+  USER_REFERENCE
+  GENERATED_OUTPUT
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String?
+  googleSub       String?  @unique
+  displayName     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  creditsBalance  Int      @default(500)
+  creditEvents    CreditEvent[]
+  jobs            Job[]
+  sessions        Session[]
+
+  vaultCollections VaultCollection[]
+  vaultItems       VaultItem[]
+  assets           Asset[]
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+}
+
+model Job {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status          JobStatus @default(QUEUED)
+  idea            String
+  presetKey       String?
+  promptProfile   String    @default("Default")
+  aspectRatio     String?
+  moodTags        String?
+
+  // New fields for advanced features
+  bypassPromptCreation Boolean @default(false)
+  directPrompt         String? // JSON string
+  referenceImages      String[] @default([])
+  presetAnswers        String? // JSON string
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  referenceAssets Asset[]   @relation("JobReferenceAssets")
+
+  draftPromptId   String?   @unique
+  draftPrompt     Prompt?   @relation("DraftPrompt", fields: [draftPromptId], references: [id])
+
+  gradedPromptId  String?   @unique
+  gradedPrompt    Prompt?   @relation("GradedPrompt", fields: [gradedPromptId], references: [id])
+
+  gradeScore      Int?
+  gradeNotes      String?
+
+  runs            ModelRun[]
+}
+
+model Prompt {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+
+  systemNotes   String?
+  promptText    String   @db.Text
+  negatives     String?  @db.Text
+  paramsJson    Json?
+  styleJson     Json?
+  rubricJson    Json?
+
+  jobDraftFor   Job?    @relation("DraftPrompt")
+  jobGradedFor  Job?    @relation("GradedPrompt")
+  modelRuns     ModelRun[]
+}
+
+model ModelRun {
+  id            String    @id @default(cuid())
+  jobId         String
+  job           Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  provider      Provider
+  status        JobStatus @default(QUEUED)
+  variations    Int       @default(1)
+
+  promptId      String?
+  prompt        Prompt?   @relation(fields: [promptId], references: [id])
+
+  costCredits   Int       @default(0)
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  error         String?   @db.Text
+
+  outputs       ImageOutput[]
+}
+
+model ImageOutput {
+  id           String   @id @default(cuid())
+  modelRunId   String
+  modelRun     ModelRun @relation(fields: [modelRunId], references: [id], onDelete: Cascade)
+
+  assetId      String?  @unique
+  asset        Asset?   @relation(fields: [assetId], references: [id])
+
+  url          String
+  thumbUrl     String?
+  width        Int?
+  height       Int?
+  seed         String?
+  metaJson     Json?
+  createdAt    DateTime @default(now())
+
+  vaultItems   VaultItem[]
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type        AssetType
+  url         String
+  thumbUrl    String?
+  mimeType    String?
+  width       Int?
+  height      Int?
+  metaJson    Json?
+  createdAt   DateTime  @default(now())
+
+  jobRefId    String?
+  jobRef      Job?      @relation("JobReferenceAssets", fields: [jobRefId], references: [id])
+
+  imageOutput ImageOutput?
+  vaultItems  VaultItem[]
+}
+
+model VaultCollection {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       VaultItem[]
+}
+
+model VaultItem {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  collectionId  String?
+  collection    VaultCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  assetId       String
+  asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  imageOutputId String?
+  imageOutput   ImageOutput? @relation(fields: [imageOutputId], references: [id], onDelete: SetNull)
+
+  title         String?
+  tags          String?
+  notes         String?  @db.Text
+  sourceJobId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CreditEvent {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type        CreditEventType
+  amount      Int
+  reason      String?
+  jobId       String?
+  createdAt   DateTime        @default(now())
+}
+
+model ProviderConfig {
+  id                 String   @id @default(cuid())
+  provider           Provider @unique
+
+  enabled            Boolean  @default(true)
+  baseCreditsPerImage Int     @default(5)
+  maxVariations      Int      @default(4)
+
+  notes              String?
+  updatedAt          DateTime @updatedAt
+}
