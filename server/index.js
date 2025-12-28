@@ -86,11 +86,14 @@ app.use('/api/upload', uploadRoutes);
 
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('dist'));
+  const path = require('path');
+  const distPath = path.join(__dirname, '..', 'dist');
+  
+  app.use(express.static(distPath));
   
   // Serve index.html for all non-API routes (SPA routing)
   app.get('*', (req, res) => {
-    res.sendFile('index.html', { root: 'dist' });
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
