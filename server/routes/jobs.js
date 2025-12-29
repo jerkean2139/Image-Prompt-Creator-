@@ -75,8 +75,7 @@ router.post('/', requireAuth, async (req, res) => {
         bypassPromptCreation: bypassPromptCreation || false,
         directPrompt: directPrompt ? JSON.stringify(directPrompt) : null,
         referenceImages: referenceImages || [],
-        presetAnswers: presetAnswers ? JSON.stringify(presetAnswers) : null,
-        creditsUsed: estimatedCost
+        presetAnswers: presetAnswers ? JSON.stringify(presetAnswers) : null
       }
     });
     
