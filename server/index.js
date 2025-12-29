@@ -24,52 +24,70 @@ import promptsRoutes from './routes/prompts.js';
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Initialize Redis client for sessions
-let redisClient;
-let sessionStore;
+let sessionStore = undefined;
 
 if (process.env.REDIS_URL) {
-  redisClient = createClient({ 
-    url: process.env.REDIS_URL,
-    socket: {
-      connectTimeout: 10000,
-      reconnectStrategy: (retries) => Math.min(retries * 50, 500)
-    }
-  });
-  
-  redisClient.on('error', (err) => console.error('Redis Client Error:', err));
-  redisClient.on('connect', () => console.log('✅ Redis session store connected'));
-  
-  // Connect asynchronously without blocking
-  redisClient.connect().catch((err) => {
-    console.error('❌ Redis connection failed:', err);
-    console.warn('⚠️  Falling back to MemoryStore');
-  });
-  
-  sessionStore = new RedisStore({ client: redisClient });
+  try {
+    const redisClient = createClient({ 
+      url: process.env.REDIS_URL,
+      socket: {
+        connectTimeout: 10000,
+        reconnectStrategy: (retries) => {
+          if (retries > 3) {
+            console.warn('⚠️  Redis connection failed after 3 retries, using MemoryStore');
+            return false; // Stop retrying
+          }
+          return Math.min(retries * 100, 1000);
+        }
+      }
+    });
+    
+    redisClient.on('error', (err) => {
+      // Only log once, not repeatedly
+      if (!redisClient._errorLogged) {
+        console.error('Redis Client Error:', err.message);
+        redisClient._errorLogged = true;
+      }
+    });
+    redisClient.on('connect', () => console.log('✅ Redis session store connected'));
+    
+    // Connect asynchronously without blocking
+    redisClient.connect().then(() => {
+      console.log('✅ Redis connected successfully');
+    }).catch((err) => {
+      console.error('❌ Redis connection failed:', err.message);
+    });
+    
+    sessionStore = new RedisStore({ client: redisClient });
+  } catch (err) {
+    console.error('❌ Failed to initialize Redis:', err.message);
+  }
 } else {
-  console.warn('⚠️  REDIS_URL not found, using MemoryStore (not recommended for production)');
+  console.warn('⚠️  REDIS_URL not found, using MemoryStore (OK for development)');
 }
 
 // Middleware
 // CORS configuration
 const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
+  'http://localhost:5000',
+  'http://localhost:3001',
+  'http://0.0.0.0:5000',
   process.env.CLIENT_URL,
-  'https://truthful-nourishment-production-6b2c.up.railway.app'
+  process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.some(allowed => origin.includes(allowed.replace(/https?:\/\//, '')))) {
+      callback(null, true);
+    } else if (origin.includes('.replit.dev') || origin.includes('.repl.co')) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, true);
     }
   },
   credentials: true

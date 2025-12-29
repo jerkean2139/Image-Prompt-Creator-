@@ -10,18 +10,28 @@ export const PROVIDER_COSTS = {
   IDEOGRAM: 90             // Quality tier
 };
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL
-});
+// Initialize OpenAI client lazily to avoid crashes when key is missing
+let openai = null;
+function getOpenAI() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL
+    });
+  }
+  return openai;
+}
 
 /**
  * Generate image with OpenAI GPT Image 1.5 (High quality)
  */
 export async function generateWithGPTImage(prompt, aspectRatio = '1024x1024') {
   try {
-    const response = await openai.images.generate({
+    const client = getOpenAI();
+    if (!client) {
+      return { success: false, error: 'OpenAI API key not configured' };
+    }
+    const response = await client.images.generate({
       model: 'gpt-image-1-5',
       prompt: prompt,
       n: 1,
@@ -52,7 +62,11 @@ export async function generateWithGPTImage(prompt, aspectRatio = '1024x1024') {
  */
 export async function generateWithDALLE3(prompt, aspectRatio = '1024x1024') {
   try {
-    const response = await openai.images.generate({
+    const client = getOpenAI();
+    if (!client) {
+      return { success: false, error: 'OpenAI API key not configured' };
+    }
+    const response = await client.images.generate({
       model: 'dall-e-3',
       prompt: prompt,
       n: 1,

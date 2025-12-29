@@ -5,7 +5,8 @@
   "main": "server/index.js",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:worker\"",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:full": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:worker\"",
     "dev:server": "nodemon server/index.js",
     "dev:client": "vite",
     "dev:worker": "nodemon server/worker.js",

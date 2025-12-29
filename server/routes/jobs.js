@@ -7,12 +7,28 @@ import { requireAuth } from '../middleware/auth.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Redis connection for queue
-const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
-  maxRetriesPerRequest: null
-});
+// Redis connection for queue - only create if REDIS_URL is set
+let jobQueue = null;
 
-const jobQueue = new Queue('promptfusion-jobs', { connection });
+if (process.env.REDIS_URL) {
+  try {
+    const connection = new IORedis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      lazyConnect: true
+    });
+    
+    connection.on('error', (err) => {
+      console.error('BullMQ Redis error:', err.message);
+    });
+    
+    jobQueue = new Queue('promptfusion-jobs', { connection });
+    console.log('✅ BullMQ job queue initialized');
+  } catch (err) {
+    console.error('❌ Failed to initialize job queue:', err.message);
+  }
+} else {
+  console.warn('⚠️  REDIS_URL not set - job queue disabled (jobs will be created but not processed)');
+}
 
 // Create new job
 router.post('/', requireAuth, async (req, res) => {
@@ -64,8 +80,12 @@ router.post('/', requireAuth, async (req, res) => {
       }
     });
     
-    // Add to queue
-    await jobQueue.add('process-job', { jobId: job.id });
+    // Add to queue if available
+    if (jobQueue) {
+      await jobQueue.add('process-job', { jobId: job.id });
+    } else {
+      console.warn(`⚠️  Job ${job.id} created but queue unavailable - set REDIS_URL to enable processing`);
+    }
     
     res.json({ 
       job: {
