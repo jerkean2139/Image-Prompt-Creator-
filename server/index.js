@@ -20,6 +20,7 @@ import vaultRoutes from './routes/vault.js';
 import creditRoutes from './routes/credits.js';
 import userRoutes from './routes/user.js';
 import uploadRoutes from './routes/upload.js';
+import promptsRoutes from './routes/prompts.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -89,6 +90,7 @@ app.use('/api/vault', vaultRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/prompts', promptsRoutes);
 
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {

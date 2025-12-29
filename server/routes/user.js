@@ -32,6 +32,28 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
+// Get user stats
+router.get('/stats', requireAuth, async (req, res) => {
+  try {
+    const [jobs, vaultItems] = await Promise.all([
+      prisma.job.findMany({ where: { userId: req.user.id } }),
+      prisma.vaultItem.findMany({ where: { userId: req.user.id } })
+    ]);
+
+    const stats = {
+      totalGenerations: jobs.length,
+      totalImages: jobs.filter(j => j.status === 'completed').length * 5,
+      creditsUsed: jobs.reduce((sum, j) => sum + (j.creditsUsed || 0), 0),
+      favorites: vaultItems.filter(item => item.isFavorite).length
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching user stats:', error);
+    res.status(500).json({ error: 'Failed to fetch user stats' });
+  }
+});
+
 // Update profile
 router.patch('/profile', requireAuth, async (req, res) => {
   try {
