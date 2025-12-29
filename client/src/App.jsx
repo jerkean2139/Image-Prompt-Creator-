@@ -1,13 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/DashboardNew';
-import CreatePage from './pages/CreatePageEnhanced';
-import VaultPage from './pages/VaultPageEnhanced';
-import ProfilePage from './pages/ProfilePageEnhanced';
-import PromptLibraryPage from './pages/PromptLibraryPage';
+import Dashboard from './pages/Dashboard';
+import VaultPage from './pages/VaultPage';
+import ProfilePage from './pages/ProfilePage';
 import JobDetailPage from './pages/JobDetailPage';
-import Onboarding from './components/Onboarding';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -41,9 +38,10 @@ function App() {
     }
   };
 
-  if (showOnboarding && user) {
-    return <Onboarding onComplete={() => setShowOnboarding(false)} />;
-  }
+  // Onboarding disabled for now
+  // if (showOnboarding && user) {
+  //   return <Onboarding onComplete={() => setShowOnboarding(false)} />;
+  // }
 
   if (loading) {
     return (
@@ -67,20 +65,12 @@ function App() {
         element={user ? <Dashboard user={user} /> : <Navigate to="/login" />} 
       />
       <Route 
-        path="/create" 
-        element={user ? <CreatePage user={user} /> : <Navigate to="/login" />} 
-      />
-      <Route 
         path="/vault" 
         element={user ? <VaultPage user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/profile" 
-        element={user ? <ProfilePage user={user} /> : <Navigate to="/login" />} 
-      />
-      <Route 
-        path="/prompt-library" 
-        element={user ? <PromptLibraryPage user={user} /> : <Navigate to="/login" />} 
+        element={user ? <ProfilePage user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />} 
       />
       <Route 
         path="/jobs/:id" 
