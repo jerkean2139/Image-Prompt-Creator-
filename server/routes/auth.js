@@ -71,7 +71,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Find user
-    const user = await prisma.user.findUnique({ where: { email } });
+    let user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -82,6 +82,26 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // For INFINITY tier users, reload credits on each login session
+    if (user.accountTier === 'INFINITY') {
+      const sessionCredits = user.sessionCredits || 10000;
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { creditsBalance: sessionCredits }
+      });
+      
+      // Log the session reload event
+      await prisma.creditEvent.create({
+        data: {
+          userId: user.id,
+          type: 'SESSION_RELOAD',
+          amount: sessionCredits,
+          reason: 'Infinity tier session reload'
+        }
+      });
+      console.log(`♾️ INFINITY tier user ${user.email} credits reloaded to ${sessionCredits}`);
+    }
+
     // Create session
     req.session.userId = user.id;
 
@@ -90,7 +110,8 @@ router.post('/login', async (req, res) => {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
-        creditsBalance: user.creditsBalance
+        creditsBalance: user.creditsBalance,
+        accountTier: user.accountTier
       }
     });
   } catch (error) {

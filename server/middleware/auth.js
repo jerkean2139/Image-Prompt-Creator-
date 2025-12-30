@@ -17,6 +17,8 @@ export const requireAuth = async (req, res, next) => {
         email: true,
         displayName: true,
         creditsBalance: true,
+        accountTier: true,
+        sessionCredits: true,
         createdAt: true
       }
     });
@@ -46,6 +48,8 @@ export const optionalAuth = async (req, res, next) => {
           email: true,
           displayName: true,
           creditsBalance: true,
+          accountTier: true,
+          sessionCredits: true,
           createdAt: true
         }
       });
