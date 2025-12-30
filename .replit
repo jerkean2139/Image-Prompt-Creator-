@@ -26,7 +26,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "vite --port 5000 --host 0.0.0.0 & nodemon server/index.js"
+args = "npm run dev"
 waitForPort = 5000
 
 [[ports]]

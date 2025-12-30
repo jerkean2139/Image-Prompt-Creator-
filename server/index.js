@@ -24,7 +24,11 @@ import promptsRoutes from './routes/prompts.js';
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 3001;
+// Detect if running in Replit development environment
+const isReplitDev = process.env.REPLIT_DEV_DOMAIN || process.env.REPL_ID;
+// In Replit dev, always use 3001 for the vite proxy
+// In production (Railway), use PORT env var
+const PORT = isReplitDev ? 3001 : (process.env.PORT || 8080);
 
 // Initialize Redis client for sessions
 let sessionStore = undefined;
