@@ -132,63 +132,48 @@ export async function generateWithGemini(prompt, aspectRatio = '1024x1024') {
 }
 
 /**
- * Generate image with Flux Pro 2
+ * Generate image with Flux Pro via Hugging Face Inference API
  */
 export async function generateWithFlux(prompt, aspectRatio = '1024x1024') {
   try {
     const [width, height] = aspectRatio.split('x').map(Number);
     
+    // Use Hugging Face Inference API for Flux
     const response = await axios.post(
-      'https://api.bfl.ml/v1/flux-pro-2',
+      'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev',
       {
-        prompt: prompt,
-        width: width,
-        height: height,
-        num_images: 1
+        inputs: prompt,
+        parameters: {
+          width: width,
+          height: height,
+          num_inference_steps: 50,
+          guidance_scale: 3.5
+        }
       },
       {
         headers: {
-          'Content-Type': 'application/json',
-          'X-Key': process.env.FLUX_API_KEY
-        }
+          'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'arraybuffer',
+        timeout: 120000 // 2 minute timeout for image generation
       }
     );
 
-    // Flux API may return a task ID that needs polling
-    const taskId = response.data.id;
-    
-    // Poll for result (simplified - in production, use proper async polling)
-    let result;
-    for (let i = 0; i < 30; i++) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const statusResponse = await axios.get(
-        `https://api.bfl.ml/v1/get_result?id=${taskId}`,
-        {
-          headers: { 'X-Key': process.env.FLUX_API_KEY }
-        }
-      );
-      
-      if (statusResponse.data.status === 'Ready') {
-        result = statusResponse.data.result;
-        break;
-      }
-    }
-
-    if (!result) {
-      throw new Error('Flux generation timeout');
-    }
+    // Convert the image buffer to base64 data URL
+    const base64Image = Buffer.from(response.data).toString('base64');
+    const dataUrl = `data:image/png;base64,${base64Image}`;
 
     return {
       success: true,
       images: [{
-        url: result.sample || result.url,
+        url: dataUrl,
         width: width,
         height: height
       }]
     };
   } catch (error) {
-    console.error('Flux generation error:', error);
+    console.error('Flux/HuggingFace generation error:', error.response?.data ? Buffer.from(error.response.data).toString() : error.message);
     return {
       success: false,
       error: error.message
