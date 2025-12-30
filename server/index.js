@@ -130,8 +130,8 @@ app.use('/api/user', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/prompts', promptsRoutes);
 
-// Serve frontend static files in production
-if (process.env.NODE_ENV === 'production') {
+// Serve frontend static files in production (not in Replit dev environment)
+if (process.env.NODE_ENV === 'production' && !isReplitDev) {
   const distPath = path.join(__dirname, '..', 'dist');
   
   app.use(express.static(distPath));
