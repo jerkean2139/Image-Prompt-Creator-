@@ -32,7 +32,7 @@ export async function generateWithGPTImage(prompt, aspectRatio = '1024x1024') {
       return { success: false, error: 'OpenAI API key not configured' };
     }
     const response = await client.images.generate({
-      model: 'gpt-image-1-5',
+      model: 'gpt-image-1.5',
       prompt: prompt,
       n: 1,
       size: aspectRatio,
