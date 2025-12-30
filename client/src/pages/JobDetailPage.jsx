@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import RemixModal from '../components/RemixModal';
 
 export default function JobDetailPage({ user, onLogout }) {
   const { id } = useParams();
@@ -9,6 +10,7 @@ export default function JobDetailPage({ user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState(new Set());
   const [showPromptJson, setShowPromptJson] = useState(false);
+  const [remixImage, setRemixImage] = useState(null);
 
   useEffect(() => {
     loadJob();
@@ -221,26 +223,43 @@ export default function JobDetailPage({ user, onLogout }) {
                       className="w-full h-auto rounded-lg"
                     />
                     
-                    {/* Heart Button Overlay */}
-                    <button
-                      onClick={() => handleToggleFavorite(output.id)}
-                      className="absolute top-3 right-3 w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-all"
-                    >
-                      {favorites.has(output.id) ? (
-                        <span className="text-2xl">❤️</span>
-                      ) : (
-                        <span className="text-2xl text-gray-300 hover:text-red-400">🤍</span>
-                      )}
-                    </button>
+                    {/* Action Buttons Overlay */}
+                    <div className="absolute top-3 right-3 flex gap-2">
+                      <button
+                        onClick={() => handleToggleFavorite(output.id)}
+                        className="w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-all"
+                      >
+                        {favorites.has(output.id) ? (
+                          <span className="text-xl">❤️</span>
+                        ) : (
+                          <span className="text-xl text-gray-300 hover:text-red-400">🤍</span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setRemixImage(output)}
+                        className="w-10 h-10 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition-all"
+                        title="Remix"
+                      >
+                        <span className="text-xl">🔄</span>
+                      </button>
+                    </div>
                   </div>
                   
-                  <div className="mt-3">
-                    <p className="text-sm font-medium text-cyber-blue">
-                      {output.provider?.replace(/_/g, ' ')}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {output.width} × {output.height}
-                    </p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-cyber-blue">
+                        {output.provider?.replace(/_/g, ' ')}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {output.width} × {output.height}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setRemixImage(output)}
+                      className="px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm rounded-lg hover:shadow-lg transition-all"
+                    >
+                      Remix
+                    </button>
                   </div>
                 </div>
               ))}
@@ -255,7 +274,30 @@ export default function JobDetailPage({ user, onLogout }) {
             <p className="text-gray-400">Generating images...</p>
           </div>
         )}
+
+        {/* No images generated (all providers failed) */}
+        {allOutputs.length === 0 && job.status === 'SUCCEEDED' && (
+          <div className="text-center py-12 card-glow">
+            <p className="text-gray-400 mb-2">No images were generated</p>
+            <p className="text-sm text-gray-500">All image generation providers may have encountered issues. Please try again.</p>
+            <button 
+              onClick={() => navigate('/create')}
+              className="mt-4 px-6 py-2 bg-gradient-to-r from-cyber-blue to-cyber-purple rounded-lg hover:opacity-90 transition-all"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Remix Modal */}
+      {remixImage && (
+        <RemixModal
+          image={remixImage}
+          originalPrompt={job?.gradedPrompt?.promptText || job?.idea}
+          onClose={() => setRemixImage(null)}
+        />
+      )}
     </div>
   );
 }

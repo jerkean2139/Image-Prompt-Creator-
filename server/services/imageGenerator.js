@@ -98,55 +98,74 @@ export async function generateWithDALLE3(prompt, aspectRatio = '1024x1024') {
  */
 export async function generateWithGemini(prompt, aspectRatio = '1024x1024') {
   try {
-    // Note: Using Google's Gemini API for image generation
-    // Adjust endpoint based on actual Google API structure
     const response = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateImage',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent',
       {
-        prompt: prompt,
-        imageSize: aspectRatio
+        contents: [{
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE']
+        }
       },
       {
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': process.env.GOOGLE_GEMINI_API_KEY
-        }
+        },
+        timeout: 120000
       }
     );
 
-    return {
-      success: true,
-      images: [{
-        url: response.data.imageUrl || response.data.url,
-        width: parseInt(aspectRatio.split('x')[0]),
-        height: parseInt(aspectRatio.split('x')[1])
-      }]
-    };
+    // Parse response - look for image data in parts
+    const candidates = response.data.candidates || [];
+    const images = [];
+    
+    for (const candidate of candidates) {
+      const parts = candidate.content?.parts || [];
+      for (const part of parts) {
+        if (part.inlineData) {
+          const base64Data = part.inlineData.data;
+          const mimeType = part.inlineData.mimeType || 'image/png';
+          images.push({
+            url: `data:${mimeType};base64,${base64Data}`,
+            width: parseInt(aspectRatio.split('x')[0]),
+            height: parseInt(aspectRatio.split('x')[1])
+          });
+        }
+      }
+    }
+
+    if (images.length === 0) {
+      return { success: false, error: 'No images in Gemini response' };
+    }
+
+    return { success: true, images };
   } catch (error) {
-    console.error('Gemini generation error:', error);
+    console.error('Gemini generation error:', error.response?.data || error);
     return {
       success: false,
-      error: error.message
+      error: error.response?.data?.error?.message || error.message
     };
   }
 }
 
 /**
- * Generate image with Flux Pro via Hugging Face Inference API
+ * Generate image with Flux Pro via Hugging Face Router API
  */
 export async function generateWithFlux(prompt, aspectRatio = '1024x1024') {
   try {
     const [width, height] = aspectRatio.split('x').map(Number);
     
-    // Use Hugging Face Inference API for Flux
+    // Use new Hugging Face Router API (api-inference deprecated)
     const response = await axios.post(
-      'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev',
+      'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-dev',
       {
         inputs: prompt,
         parameters: {
           width: width,
           height: height,
-          num_inference_steps: 50,
+          num_inference_steps: 28,
           guidance_scale: 3.5
         }
       },
@@ -156,7 +175,7 @@ export async function generateWithFlux(prompt, aspectRatio = '1024x1024') {
           'Content-Type': 'application/json'
         },
         responseType: 'arraybuffer',
-        timeout: 120000 // 2 minute timeout for image generation
+        timeout: 180000 // 3 minute timeout for Flux
       }
     );
 
@@ -182,26 +201,46 @@ export async function generateWithFlux(prompt, aspectRatio = '1024x1024') {
 }
 
 /**
+ * Convert aspect ratio to Ideogram format
+ */
+function getIdeogramAspectRatio(aspectRatio) {
+  const ratioMap = {
+    '1024x1024': 'ASPECT_1_1',
+    '1024x768': 'ASPECT_4_3',
+    '768x1024': 'ASPECT_3_4',
+    '1024x576': 'ASPECT_16_9',
+    '576x1024': 'ASPECT_9_16',
+    '1024x682': 'ASPECT_3_2',
+    '682x1024': 'ASPECT_2_3',
+    '1024x640': 'ASPECT_16_10',
+    '640x1024': 'ASPECT_10_16'
+  };
+  return ratioMap[aspectRatio] || 'ASPECT_1_1';
+}
+
+/**
  * Generate image with Ideogram (Quality tier)
  */
 export async function generateWithIdeogram(prompt, aspectRatio = '1024x1024') {
   try {
+    const ideogramAspect = getIdeogramAspectRatio(aspectRatio);
+    
     const response = await axios.post(
       'https://api.ideogram.ai/generate',
       {
         image_request: {
           prompt: prompt,
-          aspect_ratio: aspectRatio.replace('x', ':'),
-          model: 'V_3_0',
-          magic_prompt_option: 'AUTO',
-          quality: 'QUALITY' // Highest quality tier
+          aspect_ratio: ideogramAspect,
+          model: 'V_2',
+          magic_prompt_option: 'AUTO'
         }
       },
       {
         headers: {
           'Content-Type': 'application/json',
           'Api-Key': process.env.IDEOGRAM_API_KEY
-        }
+        },
+        timeout: 120000
       }
     );
 
@@ -215,10 +254,10 @@ export async function generateWithIdeogram(prompt, aspectRatio = '1024x1024') {
       }))
     };
   } catch (error) {
-    console.error('Ideogram generation error:', error);
+    console.error('Ideogram generation error:', error.response?.data || error);
     return {
       success: false,
-      error: error.message
+      error: error.response?.data?.detail || error.message
     };
   }
 }
