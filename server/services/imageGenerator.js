@@ -32,12 +32,11 @@ export async function generateWithGPTImage(prompt, aspectRatio = '1024x1024') {
       return { success: false, error: 'OpenAI API key not configured' };
     }
     const response = await client.images.generate({
-      model: 'gpt-image-1.5',
+      model: 'gpt-image-1',
       prompt: prompt,
       n: 1,
       size: aspectRatio,
-      quality: 'high',
-      response_format: 'url'
+      quality: 'high'
     });
 
     return {
@@ -172,7 +171,8 @@ export async function generateWithFlux(prompt, aspectRatio = '1024x1024') {
       {
         headers: {
           'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'image/png'
         },
         responseType: 'arraybuffer',
         timeout: 180000 // 3 minute timeout for Flux
@@ -250,7 +250,7 @@ export async function generateWithIdeogram(prompt, aspectRatio = '1024x1024') {
         url: img.url,
         width: parseInt(aspectRatio.split('x')[0]),
         height: parseInt(aspectRatio.split('x')[1]),
-        seed: img.seed
+        seed: img.seed ? String(img.seed) : null
       }))
     };
   } catch (error) {

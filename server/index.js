@@ -116,6 +116,9 @@ app.use(session({
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
 
+// Serve generated images
+app.use('/api/images', express.static(path.join(__dirname, 'public/images')));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

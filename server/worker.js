@@ -5,6 +5,7 @@ import IORedis from 'ioredis';
 import { createPrompt } from './services/promptMaker.js';
 import { iterativeGrading } from './services/promptGrader.js';
 import { createMockPrompt, createProviderSpecificPrompts } from './services/mockPromptMaker.js';
+import { downloadAndSaveImage, downloadBase64Image } from './services/imageStorage.js';
 
 // Use mock prompts when modelfarm is not available
 const USE_MOCK_PROMPTS = process.env.USE_MOCK_PROMPTS === 'true' || true; // Default to true for testing
@@ -214,16 +215,31 @@ async function processJob(job) {
         );
         
         if (genResult.success && genResult.images && genResult.images.length > 0) {
-          // Save outputs
+          // Save outputs - download images to local storage
           for (const img of genResult.images) {
+            let finalUrl = img.url;
+            
+            // Download and save the image locally
+            if (img.url && img.url.startsWith('http')) {
+              const saveResult = await downloadAndSaveImage(img.url, provider);
+              if (saveResult.success) {
+                finalUrl = saveResult.localUrl;
+              }
+            } else if (img.url && img.url.startsWith('data:')) {
+              const saveResult = await downloadBase64Image(img.url, provider);
+              if (saveResult.success) {
+                finalUrl = saveResult.localUrl;
+              }
+            }
+            
             await prisma.imageOutput.create({
               data: {
                 modelRunId: modelRun.id,
-                url: img.url,
+                url: finalUrl,
                 width: img.width,
                 height: img.height,
                 seed: img.seed,
-                metaJson: img
+                metaJson: { ...img, originalUrl: img.url }
               }
             });
           }
