@@ -57,6 +57,23 @@ export async function generateWithGPTImage(prompt, aspectRatio = '1024x1024') {
 }
 
 /**
+ * Convert aspect ratio to DALL-E 3 supported size
+ */
+function getDalleSize(aspectRatio) {
+  const sizeMap = {
+    '1024x1024': '1024x1024',
+    '1024x1536': '1024x1792',
+    '1536x1024': '1792x1024',
+    '1024x1792': '1024x1792',
+    '1792x1024': '1792x1024',
+    '768x1024': '1024x1792',
+    '1024x768': '1792x1024',
+    '512x512': '1024x1024'
+  };
+  return sizeMap[aspectRatio] || '1024x1024';
+}
+
+/**
  * Generate image with DALL-E 3 (HD quality)
  */
 export async function generateWithDALLE3(prompt, aspectRatio = '1024x1024') {
@@ -65,11 +82,12 @@ export async function generateWithDALLE3(prompt, aspectRatio = '1024x1024') {
     if (!client) {
       return { success: false, error: 'OpenAI API key not configured' };
     }
+    const dalleSize = getDalleSize(aspectRatio);
     const response = await client.images.generate({
       model: 'dall-e-3',
       prompt: prompt,
       n: 1,
-      size: aspectRatio,
+      size: dalleSize,
       quality: 'hd',
       response_format: 'url'
     });
