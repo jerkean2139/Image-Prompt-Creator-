@@ -197,7 +197,7 @@ export default function JobDetailPage({ user, onLogout }) {
         </div>
 
         {/* Model Runs Progress */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           {job.modelRuns?.map(run => (
             <div key={run.id} className="card-glow text-center">
               <h3 className="font-semibold mb-2 text-sm">{run.provider.replace(/_/g, ' ')}</h3>

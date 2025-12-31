@@ -167,7 +167,8 @@ async function processJob(job) {
     });
     
     // Step 3: Generate images with provider-specific prompts
-    const providers = ['OPENAI_GPT52_IMAGE', 'OPENAI_DALLE3', 'GEMINI_NANOBANANA_PRO', 'FLUX_PRO_2', 'IDEOGRAM'];
+    // Using 3 providers for now - GPT Image needs org verification, Flux has service issues
+    const providers = ['OPENAI_DALLE3', 'GEMINI_NANOBANANA_PRO', 'IDEOGRAM'];
     
     for (const provider of providers) {
       console.log(`🎨 Generating with ${provider} for job ${jobId}`);
