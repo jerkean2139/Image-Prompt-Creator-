@@ -53,6 +53,33 @@ The app runs in development mode with:
 Development: `npm run dev` (starts both frontend and backend)
 Worker: `npm run worker` (requires REDIS_URL)
 
+## Security Configuration (January 2025)
+
+### Security Features Implemented
+- **Rate Limiting**: 100 req/15min general, 10 req/15min auth, 5 req/min job creation
+- **Security Headers**: Helmet.js with CSP configuration
+- **Session Security**: Validated SESSION_SECRET at startup, custom cookie name (pf_sid)
+- **Input Validation**: express-validator on auth routes with password requirements (8+ chars, uppercase, lowercase, number)
+- **Bcrypt**: Cost factor 12 for password hashing
+- **Timing Attack Prevention**: Dummy hash comparison on failed logins
+- **CORS**: Exact hostname matching with configurable whitelist
+- **Upload Protection**: Authentication required for file uploads
+- **Query Limits**: MAX_LIMIT=100 to prevent unbounded queries
+- **Error Sanitization**: Production errors sanitized, no stack traces exposed
+
+### Required Environment Variables
+- `SESSION_SECRET` - **REQUIRED** - Session encryption key (app will not start without this)
+- `DATABASE_URL` - **REQUIRED** - PostgreSQL connection string
+- `CLIENT_URL` - Production frontend URL for CORS
+- `CORS_ALLOWED_ORIGINS` - Additional allowed origins (comma-separated, e.g., "https://staging.example.com,https://app.example.com")
+- `NODE_ENV` - Set to "production" for production deployments
+
+### CORS Configuration
+The app uses strict exact hostname matching. To allow additional origins:
+1. Set `CLIENT_URL` for your primary production URL
+2. Add additional origins to `CORS_ALLOWED_ORIGINS` (comma-separated)
+3. Replit domains (*.replit.dev, *.repl.co) are automatically allowed for development
+
 ## Deployment Notes
 
 This project is designed for deployment to Railway with:
