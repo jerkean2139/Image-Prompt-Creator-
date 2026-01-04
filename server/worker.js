@@ -1,17 +1,15 @@
 import 'dotenv/config';
 import { Worker, Queue } from 'bullmq';
-import { PrismaClient } from '@prisma/client';
 import IORedis from 'ioredis';
 import { createPrompt } from './services/promptMaker.js';
 import { iterativeGrading } from './services/promptGrader.js';
 import { createMockPrompt, createProviderSpecificPrompts } from './services/mockPromptMaker.js';
 import { downloadAndSaveImage, downloadBase64Image } from './services/imageStorage.js';
+import { prisma } from './lib/prisma.js';
 
 // Use mock prompts when modelfarm is not available
 const USE_MOCK_PROMPTS = process.env.USE_MOCK_PROMPTS === 'true' || true; // Default to true for testing
 import { generateImage, PROVIDER_COSTS } from './services/imageGenerator.js';
-
-const prisma = new PrismaClient();
 
 // Redis connection
 const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {

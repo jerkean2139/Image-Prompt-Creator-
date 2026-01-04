@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { requireAuth } from '../middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,8 +41,8 @@ const upload = multer({
   }
 });
 
-// Upload endpoint
-router.post('/', upload.single('file'), (req, res) => {
+// Upload endpoint - requires authentication
+router.post('/', requireAuth, upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });

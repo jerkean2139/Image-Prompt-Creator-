@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
@@ -13,6 +15,14 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Validate required environment variables on startup
+const requiredEnvVars = ['SESSION_SECRET', 'DATABASE_URL'];
+const missingEnvVars = requiredEnvVars.filter(v => !process.env[v]);
+if (missingEnvVars.length > 0) {
+  console.error(`❌ FATAL: Missing required environment variables: ${missingEnvVars.join(', ')}`);
+  process.exit(1);
+}
+
 // Routes
 import authRoutes from './routes/auth.js';
 import jobRoutes from './routes/jobs.js';
@@ -22,8 +32,9 @@ import userRoutes from './routes/user.js';
 import uploadRoutes from './routes/upload.js';
 import promptsRoutes from './routes/prompts.js';
 
+import { prisma } from './lib/prisma.js';
+
 const app = express();
-const prisma = new PrismaClient();
 // Detect if running in Replit development environment
 const isReplitDev = process.env.REPLIT_DEV_DOMAIN || process.env.REPL_ID;
 // In Replit dev, always use 3001 for the vite proxy
@@ -73,37 +84,110 @@ if (process.env.REDIS_URL) {
   console.warn('⚠️  REDIS_URL not found, using MemoryStore (OK for development)');
 }
 
-// Middleware
-// CORS configuration
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", "https:", "wss:"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // 10 auth attempts per 15 minutes
+  message: { error: 'Too many authentication attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const jobLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 job creations per minute
+  message: { error: 'Rate limit exceeded for job creation' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use('/api/', generalLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+
+// CORS configuration - strict whitelist with exact hostname matching
 const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3001',
   'http://0.0.0.0:5000',
   process.env.CLIENT_URL,
-  process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null
+  process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null,
+  process.env.REPLIT_DOMAINS
 ].filter(Boolean);
+
+// Extract hostname from URL for secure comparison
+function getHostname(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.some(allowed => origin.includes(allowed.replace(/https?:\/\//, '')))) {
-      callback(null, true);
-    } else if (origin.includes('.replit.dev') || origin.includes('.repl.co')) {
+    
+    const originHostname = getHostname(origin);
+    if (!originHostname) {
+      console.warn(`CORS blocked invalid origin: ${origin}`);
+      return callback(new Error('Not allowed by CORS'));
+    }
+    
+    // Check exact match against whitelist
+    const isExactMatch = allowedOrigins.some(allowed => {
+      const allowedHostname = getHostname(allowed);
+      return allowedHostname && originHostname === allowedHostname;
+    });
+    
+    // Allow Replit domains (exact suffix match for security)
+    const isReplitDomain = originHostname.endsWith('.replit.dev') || 
+                           originHostname.endsWith('.repl.co') ||
+                           originHostname.endsWith('.janeway.replit.dev');
+    
+    if (isExactMatch || isReplitDomain) {
       callback(null, true);
     } else {
-      callback(null, true);
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(session({
   store: sessionStore || undefined,
-  secret: process.env.SESSION_SECRET || 'change-this-secret',
+  secret: process.env.SESSION_SECRET, // Required - validated at startup
   resave: false,
   saveUninitialized: false,
+  name: 'pf_sid', // Custom session cookie name (not default 'connect.sid')
   proxy: process.env.NODE_ENV === 'production',
   cookie: {
     secure: process.env.NODE_ENV === 'production',
@@ -119,14 +203,9 @@ app.use('/uploads', express.static('uploads'));
 // Serve generated images
 app.use('/api/images', express.static(path.join(__dirname, 'public/images')));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // API Routes (must be before catch-all route)
 app.use('/api/auth', authRoutes);
-app.use('/api/jobs', jobRoutes);
+app.use('/api/jobs', jobLimiter, jobRoutes);
 app.use('/api/vault', vaultRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/user', userRoutes);
@@ -145,12 +224,44 @@ if (process.env.NODE_ENV === 'production' && !isReplitDev) {
   });
 }
 
-// Error handler
+// Error handler - sanitize error messages in production
 app.use((err, req, res, next) => {
+  // Log full error server-side
   console.error('Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error'
+  
+  // Sanitize error response for production
+  const isDev = process.env.NODE_ENV !== 'production';
+  const status = err.status || 500;
+  
+  // Never expose internal errors to client in production
+  let message = 'Internal server error';
+  if (status < 500 || isDev) {
+    message = err.message || message;
+  }
+  
+  res.status(status).json({
+    error: message,
+    ...(isDev && { stack: err.stack })
   });
+});
+
+// Health check with dependency status
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connectivity
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: 'degraded', 
+      timestamp: new Date().toISOString(),
+      database: 'disconnected'
+    });
+  }
 });
 
 // Start server
@@ -165,5 +276,3 @@ process.on('SIGINT', async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
-
-export { prisma };

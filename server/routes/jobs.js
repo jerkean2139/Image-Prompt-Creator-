@@ -1,11 +1,13 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { requireAuth } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+// Query limit caps to prevent abuse
+const MAX_LIMIT = 100;
 
 // Redis connection for queue - only create if REDIS_URL is set
 let jobQueue = null;
@@ -103,7 +105,8 @@ router.post('/', requireAuth, async (req, res) => {
 // Get user's jobs
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { limit = 20, offset = 0 } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 20, MAX_LIMIT);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     
     const jobs = await prisma.job.findMany({
       where: { userId: req.user.id },
@@ -116,8 +119,8 @@ router.get('/', requireAuth, async (req, res) => {
         gradedPrompt: true
       },
       orderBy: { createdAt: 'desc' },
-      take: parseInt(limit),
-      skip: parseInt(offset)
+      take: limit,
+      skip: offset
     });
     
     res.json({ jobs });

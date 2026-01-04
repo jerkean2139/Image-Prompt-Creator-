@@ -1,9 +1,11 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+// Query limit caps to prevent abuse
+const MAX_LIMIT = 100;
 
 // Get user's vault collections
 router.get('/collections', requireAuth, async (req, res) => {
@@ -52,7 +54,9 @@ router.post('/collections', requireAuth, async (req, res) => {
 // Get vault items
 router.get('/items', requireAuth, async (req, res) => {
   try {
-    const { collectionId, limit = 50, offset = 0 } = req.query;
+    const { collectionId } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 50, MAX_LIMIT);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     
     const where = { userId: req.user.id };
     if (collectionId) {
@@ -76,8 +80,8 @@ router.get('/items', requireAuth, async (req, res) => {
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: parseInt(limit),
-      skip: parseInt(offset)
+      take: limit,
+      skip: offset
     });
     
     res.json({ items });

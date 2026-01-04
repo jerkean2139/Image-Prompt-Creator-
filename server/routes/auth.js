@@ -1,18 +1,38 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
+import { body, validationResult } from 'express-validator';
 import { requireAuth } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// Register
-router.post('/register', async (req, res) => {
+// Password validation helper
+const validatePassword = (password) => {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain a number';
+  return null;
+};
+
+// Register with validation
+router.post('/register', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('displayName').optional().trim().isLength({ max: 50 }).escape()
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
     const { email, password, displayName } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+    // Validate password strength
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
     }
 
     // Check if user exists
@@ -21,8 +41,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Hash password with higher cost factor
+    const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user with 500 free credits
     const user = await prisma.user.create({
@@ -61,18 +81,25 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login
-router.post('/login', async (req, res) => {
+// Login with validation
+router.post('/login', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
+  body('password').notEmpty().withMessage('Password required')
+], async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: errors.array()[0].msg });
     }
 
-    // Find user
+    const { email, password } = req.body;
+
+    // Find user - timing attack safe response
     let user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
+      // Perform dummy hash comparison to prevent timing attacks
+      // Pre-computed bcrypt hash for string "dummy" with cost 12
+      await bcrypt.compare(password, '$2b$12$K4G0AoIJZrVlPm1Yf6tFjOHJ3cMrJ5Q9xELnBdj8qNpVcZmE5Y2Uy');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -90,7 +117,7 @@ router.post('/login', async (req, res) => {
         data: { creditsBalance: sessionCredits }
       });
       
-      // Log the session reload event
+      // Log the session reload event (no PII in logs)
       await prisma.creditEvent.create({
         data: {
           userId: user.id,
@@ -99,7 +126,7 @@ router.post('/login', async (req, res) => {
           reason: 'Infinity tier session reload'
         }
       });
-      console.log(`♾️ INFINITY tier user ${user.email} credits reloaded to ${sessionCredits}`);
+      console.log(`♾️ INFINITY tier user credits reloaded to ${sessionCredits}`);
     }
 
     // Create session
