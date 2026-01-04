@@ -131,13 +131,14 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
 // CORS configuration - strict whitelist with exact hostname matching
+// Additional origins can be added via CORS_ALLOWED_ORIGINS (comma-separated)
 const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3001',
   'http://0.0.0.0:5000',
   process.env.CLIENT_URL,
   process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null,
-  process.env.REPLIT_DOMAINS
+  ...(process.env.CORS_ALLOWED_ORIGINS ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim()) : [])
 ].filter(Boolean);
 
 // Extract hostname from URL for secure comparison
@@ -147,16 +148,6 @@ function getHostname(url) {
   } catch {
     return null;
   }
-}
-
-// Check if origin hostname matches allowed hostname or is a subdomain of it
-function isAllowedOrigin(originHostname, allowedHostname) {
-  if (!originHostname || !allowedHostname) return false;
-  // Exact match
-  if (originHostname === allowedHostname) return true;
-  // Subdomain match (e.g., staging.example.com matches example.com)
-  if (originHostname.endsWith('.' + allowedHostname)) return true;
-  return false;
 }
 
 app.use(cors({
@@ -170,13 +161,13 @@ app.use(cors({
       return callback(new Error('Not allowed by CORS'));
     }
     
-    // Check match against whitelist (exact or subdomain)
+    // Check EXACT hostname match against whitelist (secure - no substring/subdomain tricks)
     const isWhitelisted = allowedOrigins.some(allowed => {
       const allowedHostname = getHostname(allowed);
-      return isAllowedOrigin(originHostname, allowedHostname);
+      return allowedHostname && originHostname === allowedHostname;
     });
     
-    // Allow Replit domains (exact suffix match for security)
+    // Allow Replit domains (exact suffix match for development/staging)
     const isReplitDomain = originHostname.endsWith('.replit.dev') || 
                            originHostname.endsWith('.repl.co') ||
                            originHostname.endsWith('.janeway.replit.dev');
