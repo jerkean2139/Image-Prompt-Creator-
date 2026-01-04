@@ -7,7 +7,6 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
-import { PrismaClient } from '@prisma/client';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -35,6 +34,9 @@ import promptsRoutes from './routes/prompts.js';
 import { prisma } from './lib/prisma.js';
 
 const app = express();
+
+// Trust proxy for rate limiting behind reverse proxies (Replit, Railway, etc)
+app.set('trust proxy', 1);
 // Detect if running in Replit development environment
 const isReplitDev = process.env.REPLIT_DEV_DOMAIN || process.env.REPL_ID;
 // In Replit dev, always use 3001 for the vite proxy
@@ -147,6 +149,16 @@ function getHostname(url) {
   }
 }
 
+// Check if origin hostname matches allowed hostname or is a subdomain of it
+function isAllowedOrigin(originHostname, allowedHostname) {
+  if (!originHostname || !allowedHostname) return false;
+  // Exact match
+  if (originHostname === allowedHostname) return true;
+  // Subdomain match (e.g., staging.example.com matches example.com)
+  if (originHostname.endsWith('.' + allowedHostname)) return true;
+  return false;
+}
+
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, server-to-server)
@@ -158,10 +170,10 @@ app.use(cors({
       return callback(new Error('Not allowed by CORS'));
     }
     
-    // Check exact match against whitelist
-    const isExactMatch = allowedOrigins.some(allowed => {
+    // Check match against whitelist (exact or subdomain)
+    const isWhitelisted = allowedOrigins.some(allowed => {
       const allowedHostname = getHostname(allowed);
-      return allowedHostname && originHostname === allowedHostname;
+      return isAllowedOrigin(originHostname, allowedHostname);
     });
     
     // Allow Replit domains (exact suffix match for security)
@@ -169,7 +181,7 @@ app.use(cors({
                            originHostname.endsWith('.repl.co') ||
                            originHostname.endsWith('.janeway.replit.dev');
     
-    if (isExactMatch || isReplitDomain) {
+    if (isWhitelisted || isReplitDomain) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked origin: ${origin}`);

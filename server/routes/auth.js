@@ -96,11 +96,20 @@ router.post('/login', [
 
     // Find user - timing attack safe response
     let user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.passwordHash) {
-      // Perform dummy hash comparison to prevent timing attacks
-      // Pre-computed bcrypt hash for string "dummy" with cost 12
-      await bcrypt.compare(password, '$2b$12$K4G0AoIJZrVlPm1Yf6tFjOHJ3cMrJ5Q9xELnBdj8qNpVcZmE5Y2Uy');
+    
+    // Pre-computed bcrypt hash for timing attack prevention
+    const DUMMY_HASH = '$2b$12$K4G0AoIJZrVlPm1Yf6tFjOHJ3cMrJ5Q9xELnBdj8qNpVcZmE5Y2Uy';
+    
+    if (!user) {
+      // User doesn't exist - dummy hash comparison for timing attack prevention
+      await bcrypt.compare(password, DUMMY_HASH);
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    if (!user.passwordHash) {
+      // OAuth-only user trying password login - dummy hash for timing attack prevention
+      await bcrypt.compare(password, DUMMY_HASH);
+      return res.status(401).json({ error: 'Please use your OAuth provider to sign in' });
     }
 
     // Check password
