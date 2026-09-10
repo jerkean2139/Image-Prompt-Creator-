@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
 import { createClient } from 'redis';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -237,12 +238,40 @@ app.get('/health', async (req, res) => {
 // Serve frontend static files in production (not in Replit dev environment)
 if (process.env.NODE_ENV === 'production' && !isReplitDev) {
   const distPath = path.join(__dirname, '..', 'dist');
-  
-  app.use(express.static(distPath));
-  
+  const indexPath = path.join(distPath, 'index.html');
+  const hasBuild = fs.existsSync(indexPath);
+
+  if (!hasBuild) {
+    console.error(`❌ No built frontend found at ${distPath}`);
+    console.error('   Did "npm run build" run? Serving a diagnostic page instead of a blank screen.');
+  }
+
+  if (hasBuild) {
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          // Bundles carry a content hash, so a new build is a new URL.
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          // index.html, sw.js and manifest.json must always be revalidated. A
+          // stale shell points at asset hashes that no longer exist, which the
+          // browser renders as a blank page.
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      }
+    }));
+  }
+
   // Serve index.html for all non-API routes (SPA routing)
   app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    if (!hasBuild) {
+      return res
+        .status(503)
+        .type('text/plain')
+        .send('Frontend not built. The server is running but dist/ is missing - check the build logs.');
+    }
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(indexPath);
   });
 }
 
