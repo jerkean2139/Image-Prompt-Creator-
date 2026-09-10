@@ -8,4 +8,4 @@ cmds = ["npm ci --include=dev"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "node server/index.js"
+cmd = "bash start-railway.sh"

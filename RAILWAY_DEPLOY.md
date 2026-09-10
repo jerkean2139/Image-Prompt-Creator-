@@ -40,7 +40,8 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
 
 # Session
-SESSION_SECRET=+4oJTXp9A2ltiZcHFe7S4tfVzcrMt7GXyZzEbzqFGqdWesX1FKHmBBLOppk4H1Ex1RAVsdXGmmfgBRHQlANAKw==
+# Generate your own: openssl rand -base64 64
+SESSION_SECRET=replace-with-your-own-generated-secret
 
 # AI APIs (Update these with production URLs!)
 ANTHROPIC_API_KEY=_DUMMY_API_KEY_
@@ -77,12 +78,15 @@ CLIENT_URL=https://your-app.railway.app
 4. Set same environment variables as web service
 5. Go to "Settings" → "Deploy" → Set start command: `node server/worker.js`
 
-### Step 4: Run Database Migration
+### Step 4: Database Migrations
 
-After deployment, open Railway terminal for web service and run:
-```bash
-npx prisma migrate deploy
-```
+Migrations run automatically on every deploy. `start-railway.sh` runs
+`prisma migrate deploy` when the container starts, before the server boots.
+
+They do **not** run during the build. Railway's private network
+(`postgres.railway.internal`) only exists at runtime, so a build-time migration
+fails with `P1001: Can't reach database server`. Keep `npm run build` as
+`vite build` only.
 
 ### Step 5: Update URLs
 
@@ -117,10 +121,25 @@ railway up
 
 ## Test Production
 
-1. Visit your Railway URL
-2. Register account (500 free credits)
-3. Create test generation
-4. Check logs in Railway dashboard
+1. `curl https://your-app.railway.app/health` - expect `{"status":"ok","database":"connected"}`
+2. Visit your Railway URL
+3. Register account (500 free credits)
+4. Create test generation
+5. Check logs in Railway dashboard
+
+## Troubleshooting
+
+**Build fails with `P1001: Can't reach database server at postgres.railway.internal:5432`**
+A migration is running during the build. Railway's private network is runtime-only.
+Move it to the start command (see Step 4).
+
+**Deploy healthcheck fails on `/health`**
+The server is up but Postgres is unreachable. Check that `DATABASE_URL` is set to
+`${{Postgres.DATABASE_URL}}` and the Postgres service is running.
+
+**Jobs are created but never processed**
+`REDIS_URL` is not set, so the worker is skipped. Add
+`REDIS_URL=${{Redis.REDIS_URL}}` to the web service variables.
 
 ---
 
