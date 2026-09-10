@@ -151,37 +151,53 @@ function getHostname(url) {
   }
 }
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
-    
-    const originHostname = getHostname(origin);
-    if (!originHostname) {
-      console.warn(`CORS blocked invalid origin: ${origin}`);
-      return callback(new Error('Not allowed by CORS'));
-    }
-    
-    // Check EXACT hostname match against whitelist (secure - no substring/subdomain tricks)
-    const isWhitelisted = allowedOrigins.some(allowed => {
-      const allowedHostname = getHostname(allowed);
-      return allowedHostname && originHostname === allowedHostname;
-    });
-    
-    // Allow Replit domains (exact suffix match for development/staging)
-    const isReplitDomain = originHostname.endsWith('.replit.dev') || 
-                           originHostname.endsWith('.repl.co') ||
-                           originHostname.endsWith('.janeway.replit.dev');
-    
-    if (isWhitelisted || isReplitDomain) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+// The SPA is served from this same server in production, so its own origin must
+// always be allowed. Vite emits <script type="module" crossorigin> and
+// <link rel="stylesheet" crossorigin>, both of which are fetched in CORS mode and
+// therefore send an Origin header even same-origin - if that origin is refused,
+// the app's own CSS and JS fail to load and the page renders blank.
+function isSameOrigin(req, originHostname) {
+  const host = req.headers.host;
+  if (!host) return false;
+  // Strip the port; hostnames are compared exactly.
+  return host.split(':')[0] === originHostname;
+}
+
+const corsOptionsDelegate = (req, callback) => {
+  const allow = (origin) => callback(null, { origin, credentials: true });
+  const origin = req.headers.origin;
+
+  // Requests with no origin (mobile apps, curl, server-to-server)
+  if (!origin) return allow(true);
+
+  const originHostname = getHostname(origin);
+  if (!originHostname) {
+    console.warn(`CORS blocked invalid origin: ${origin}`);
+    return allow(false);
+  }
+
+  if (isSameOrigin(req, originHostname)) return allow(true);
+
+  // Check EXACT hostname match against whitelist (secure - no substring/subdomain tricks)
+  const isWhitelisted = allowedOrigins.some(allowed => {
+    const allowedHostname = getHostname(allowed);
+    return allowedHostname && originHostname === allowedHostname;
+  });
+
+  // Allow Replit domains (exact suffix match for development/staging)
+  const isReplitDomain = originHostname.endsWith('.replit.dev') ||
+                         originHostname.endsWith('.repl.co');
+
+  if (isWhitelisted || isReplitDomain) return allow(true);
+
+  // Refuse by withholding the CORS headers rather than raising an error. Raising
+  // sends the request to the error handler, which answers 500 with a JSON body -
+  // that is what turned a blocked stylesheet into an unreadable MIME-type error.
+  console.warn(`CORS blocked origin: ${origin}`);
+  allow(false);
+};
+
+app.use(cors(corsOptionsDelegate));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
