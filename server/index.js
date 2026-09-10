@@ -215,6 +215,25 @@ app.use('/api/user', userRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/prompts', promptsRoutes);
 
+// Health check with dependency status
+app.get('/health', async (req, res) => {
+  try {
+    // Check database connectivity
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      database: 'connected'
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: 'degraded', 
+      timestamp: new Date().toISOString(),
+      database: 'disconnected'
+    });
+  }
+});
+
 // Serve frontend static files in production (not in Replit dev environment)
 if (process.env.NODE_ENV === 'production' && !isReplitDev) {
   const distPath = path.join(__dirname, '..', 'dist');
@@ -246,25 +265,6 @@ app.use((err, req, res, next) => {
     error: message,
     ...(isDev && { stack: err.stack })
   });
-});
-
-// Health check with dependency status
-app.get('/health', async (req, res) => {
-  try {
-    // Check database connectivity
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ 
-      status: 'ok', 
-      timestamp: new Date().toISOString(),
-      database: 'connected'
-    });
-  } catch (error) {
-    res.status(503).json({ 
-      status: 'degraded', 
-      timestamp: new Date().toISOString(),
-      database: 'disconnected'
-    });
-  }
 });
 
 // Start server
